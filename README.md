@@ -141,3 +141,13 @@ APP="mac/dist/곁메모.app/Contents/MacOS/GyeotMemo"
 ```
 
 각각 `self-test-results.txt`, `layout-test-results.txt`를 지정한 폴더에 남기고, 성공 시 종료 코드 0을 돌려줍니다.
+
+### Mac 없이 macOS 버전 배포하기 (저장소 관리자용)
+
+macOS 빌드는 GitHub Actions의 Mac 서버(`.github/workflows/macos.yml`)가 대신 합니다. Mac이 없어도 됩니다.
+
+1. 평소처럼 GitHub에서 **Releases → Draft a new release**로 `v1.0.2` 같은 태그의 릴리스를 만들고 **Publish release**를 누릅니다.
+2. 몇 분 뒤 **Actions** 탭의 `macOS build`가 끝나면 그 릴리스에 `GyeotMemo-v1.0.2-mac.dmg`가 자동으로 첨부됩니다. 버전 번호는 태그에서 가져옵니다(`v` 제외).
+3. 실패하면 Actions 탭에서 빨간 표시가 난 실행을 열어 로그를 확인합니다. 필요하면 **Run workflow**로 다시 실행할 수 있습니다.
+
+`mac/` 폴더를 바꾸는 push나 PR에서도 같은 빌드와 검증(`--self-test`, `--layout-test`)이 실행되고, 실행 결과 화면의 **Artifacts**에서 `.dmg`를 내려받아 볼 수 있습니다.

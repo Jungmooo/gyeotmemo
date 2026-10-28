@@ -1,0 +1,46 @@
+# Builds the macOS app on GitHub's Mac runners, so no Mac is needed to ship it.
+# - Pushes / pull requests touching mac/: build, run the self and layout tests, keep the .dmg as a run artifact.
+# - Publishing a GitHub Release (tag like v1.0.2): also attach GyeotMemo-v1.0.2-mac.dmg to that release.
+name: macOS build
+
+on:
+  push:
+    paths: ['mac/**', '.github/workflows/macos.yml']
+  pull_request:
+    paths: ['mac/**', '.github/workflows/macos.yml']
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version from release tag
+        if: github.event_name == 'release'
+        run: echo "GYEOTMEMO_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Build app and .dmg
+        run: mac/build.sh
+
+      - name: Self test (storage and recovery)
+        run: '"mac/dist/곁메모.app/Contents/MacOS/GyeotMemo" --self-test --data-dir "$RUNNER_TEMP/self-test"'
+
+      - name: Layout test (real window)
+        run: '"mac/dist/곁메모.app/Contents/MacOS/GyeotMemo" --layout-test --data-dir "$RUNNER_TEMP/layout-test"'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GyeotMemo-mac-dmg
+          path: mac/dist/*.dmg
+
+      - name: Attach .dmg to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" mac/dist/*.dmg --clobber

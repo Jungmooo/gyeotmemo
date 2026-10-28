@@ -3,7 +3,8 @@
 # Requires the Xcode Command Line Tools (xcode-select --install). No other dependencies.
 set -euo pipefail
 cd "$(dirname "$0")"
-VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)
+# GYEOTMEMO_VERSION (e.g. from a release tag) overrides the version in Info.plist.
+VERSION=${GYEOTMEMO_VERSION:-$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)}
 DIST=dist
 BUILD=$DIST/build
 APP="$DIST/곁메모.app"
@@ -17,6 +18,7 @@ for arch in arm64 x86_64; do
 done
 lipo -create -output "$APP/Contents/MacOS/GyeotMemo" "$BUILD/GyeotMemo-arm64" "$BUILD/GyeotMemo-x86_64"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set CFBundleShortVersionString $VERSION" -c "Set CFBundleVersion $VERSION" "$APP/Contents/Info.plist"
 
 swift make-icon.swift "$BUILD/AppIcon.iconset"
 iconutil -c icns -o "$APP/Contents/Resources/AppIcon.icns" "$BUILD/AppIcon.iconset"
