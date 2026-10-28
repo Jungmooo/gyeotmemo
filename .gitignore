@@ -1,0 +1,27 @@
+# Local notes and backups are personal and must never be committed.
+data/
+**/data/
+memo*.json
+error.log
+
+# Generated builds, packages, and test output.
+dist/
+bin/
+obj/
+test-results/
+layout-data-*/
+test-*/
+*.exe
+*.pdb
+*.zip
+*.lnk
+*.tmp
+*.log
+
+# Local development settings.
+.vs/
+.vscode/
+*.user
+*.suo
+.env
+.env.*
