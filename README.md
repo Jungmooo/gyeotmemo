@@ -1,10 +1,10 @@
 # 곁메모 1.0.1
 
-항상 곁에 두는 작은 Windows 할 일 메모장입니다. 계정이나 인터넷 연결이 필요 없습니다.
+항상 곁에 두는 작은 할 일 메모장입니다. Windows와 macOS에서 사용할 수 있습니다. 계정이나 인터넷 연결이 필요 없습니다.
 
 ## 다운로드
 
-[Releases](https://github.com/Jungmooo/gyeotmemo/releases)에서 `GyeotMemo-v1.0.1-win.zip`을 받아 압축을 풀고 `GyeotMemo.exe`를 실행합니다. 이 저장소는 비공개이므로 접근 권한이 있는 GitHub 계정으로 로그인해야 합니다.
+[Releases](https://github.com/Jungmooo/gyeotmemo/releases)에서 `GyeotMemo-v1.0.1-win.zip`을 받아 압축을 풀고 `GyeotMemo.exe`를 실행합니다. macOS는 `GyeotMemo-v1.0.1-mac.dmg`를 받습니다. 아래 [macOS](#macos)를 참고하세요. 이 저장소는 비공개이므로 접근 권한이 있는 GitHub 계정으로 로그인해야 합니다.
 
 기존 사용자는 곁메모를 닫은 뒤 실행 파일과 config 파일을 교체하고 기존 `data` 폴더는 유지하세요. 개인 메모와 테스트 데이터는 저장소 및 배포 파일에 포함하지 않습니다.
 
@@ -84,3 +84,60 @@ Start-Process .\dist\GyeotMemo.exe -ArgumentList '--self-test --data-dir C:\Temp
 `tests/run-layout-tests.ps1`은 실제 WPF GridSplitter의 드래그 처리, 입력창 높이 변화, 재실행 후 높이와 내용 복원, 최소 창 크기의 배치를 검증합니다. 실행 파일 경로는 `-ApplicationPath`로 지정할 수 있습니다.
 
 기술 참고: [WPF Window.Topmost](https://learn.microsoft.com/en-us/dotnet/api/system.windows.window.topmost), [WPF 창 개요](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/windows/).
+
+## macOS
+
+`mac/` 폴더에 Swift(AppKit)로 옮긴 네이티브 macOS 버전이 있습니다. 기능과 저장 형식은 Windows 버전과 같습니다.
+
+### 설치
+
+1. `GyeotMemo-v1.0.1-mac.dmg`를 열고 `곁메모.app`을 `Applications` 폴더로 끌어 놓습니다.
+2. 처음 실행할 때 “확인되지 않은 개발자” 경고가 나올 수 있습니다. 이 앱은 ad-hoc 서명만 되어 있고 Apple 공증(notarization)을 받지 않았기 때문입니다.
+   **시스템 설정 → 개인정보 보호 및 보안**에서 곁메모 항목의 **그래도 열기**를 누르세요.
+   터미널을 쓴다면 `xattr -dr com.apple.quarantine /Applications/곁메모.app` 후 실행해도 됩니다.
+
+- macOS 13 Ventura 이상, Apple silicon과 Intel Mac 모두 지원하는 유니버설 앱입니다.
+- 설치나 관리자 권한, 인터넷 연결은 필요 없습니다.
+
+### 사용법 차이
+
+창 이동·크기 조절·최소화·닫기는 macOS 기본 창 동작(신호등 버튼)을 따릅니다. 단축키는 Ctrl 대신 ⌘을 씁니다.
+
+| 기능 | Windows | macOS |
+| --- | --- | --- |
+| 항상 위 고정 | Ctrl+Shift+P | ⇧⌘P 또는 `고정 / 해제` 버튼 |
+| 새 할 일에 포커스 | Ctrl+N | ⌘N |
+| 할 일 추가 | Enter | Return |
+| 수정 | 두 번 클릭 · 연필 · F2 | 두 번 클릭 · 연필 · 선택 후 Return 또는 F2 |
+| 순서 변경 | 손잡이 드래그 · Alt+↑/↓ | 항목 드래그 · ⌥↑/↓ |
+| 삭제 | × · Delete | × · Delete(⌫) |
+| 완료 표시 | 체크박스 | 체크박스 · 선택 후 Space |
+| 삭제 되돌리기 | 목록에서 Ctrl+Z | 목록에서 ⌘Z, `할 일` 메뉴 |
+| 최소화 / 닫기 | 상단 − / × | ⌘M / ⌘W 또는 신호등 버튼 |
+
+고정은 창을 일반 창 위(floating 레벨)에 유지합니다. 다른 앱의 전체 화면 공간이나 다른 데스크탑(Space)까지 따라가지는 않습니다.
+
+### 저장 위치
+
+`~/Library/Application Support/GyeotMemo`에 `memo.json`, `memo.backup.json`, `memo.unreadable-*.json`을 Windows 버전과 같은 방식으로 저장합니다. 메뉴의 **곁메모 → 저장 폴더 열기**로 Finder에서 열 수 있습니다.
+
+저장 형식이 같으므로 Windows의 `data/memo.json`을 이 폴더에 복사하면 그대로 이어서 쓸 수 있습니다(곁메모를 닫은 상태에서 복사). 창 위치는 화면 구성이 다르면 보이는 위치로 옮겨집니다.
+
+### 빌드와 검증
+
+Xcode Command Line Tools(`xcode-select --install`)만 있으면 됩니다. 외부 패키지는 사용하지 않습니다.
+
+```bash
+mac/build.sh            # mac/dist/곁메모.app 과 mac/dist/GyeotMemo-v1.0.1-mac.dmg 생성
+mac/build.sh --no-dmg   # .app만 생성
+```
+
+저장·복구 검증(Windows `--self-test`와 같은 8개 항목)과 실제 창을 띄워 하는 레이아웃·조작 검증:
+
+```bash
+APP="mac/dist/곁메모.app/Contents/MacOS/GyeotMemo"
+"$APP" --self-test   --data-dir /tmp/GyeotMemoTests
+"$APP" --layout-test --data-dir /tmp/GyeotMemoTests
+```
+
+각각 `self-test-results.txt`, `layout-test-results.txt`를 지정한 폴더에 남기고, 성공 시 종료 코드 0을 돌려줍니다.

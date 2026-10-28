@@ -1,5 +1,13 @@
 # 변경 기록
 
+## macOS 1.0.1 — 2026-10-28
+
+- Swift(AppKit) 네이티브 macOS 버전 추가 (`mac/`), 유니버설 앱 · macOS 13 이상
+- Windows 1.0.1과 같은 기능: 항상 위 고정, 할 일 추가·수정·완료·순서 변경·삭제 되돌리기, 자유 메모, 메모 영역 크기 조절, 자동 저장·백업 복원
+- Windows 버전과 같은 `memo.json` 저장 형식 (`~/Library/Application Support/GyeotMemo`)
+- `.dmg` 배포 패키지와 `mac/build.sh` 빌드 스크립트
+- `--self-test` 저장·복구 검증과 `--layout-test` 레이아웃·조작 검증
+
 ## 1.0.1 — 2026-10-28
 
 - 메모 조절 막대가 완료 정리 줄 대신 실제 메모 입력 영역을 늘리고 줄이도록 수정
