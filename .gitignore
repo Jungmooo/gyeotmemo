@@ -14,6 +14,8 @@ test-*/
 *.exe
 *.pdb
 *.zip
+*.dmg
+*.iconset/
 *.lnk
 *.tmp
 *.log
