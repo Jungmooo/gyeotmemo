@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Globalization;
 using System.Text;
 using System.Web.Script.Serialization;
 
@@ -13,12 +14,115 @@ namespace GyeotMemo
         private string text = "";
         private bool completed;
         private bool editing;
+        private string scheduleLabel = "";
         public string Id { get; set; }
         public string Text { get { return text; } set { if (text != value) { text = value ?? ""; Notify("Text"); } } }
         public bool Completed { get { return completed; } set { if (completed != value) { completed = value; Notify("Completed"); } } }
+        public string ScheduleSource { get; set; }
+        public string ScheduledFor { get; set; }
+        public string ReminderSentFor { get; set; }
+        public string ScheduleHint { get; set; }
+        public int ScheduleVersion { get; set; }
+        public string PendingMorningFor { get; set; }
+        public string PendingAfternoonFor { get; set; }
+        private const int CurrentScheduleVersion = 2;
+        private const string ScheduleFormat = "yyyy-MM-dd'T'HH:mm:ss";
+        [ScriptIgnore]
+        public DateTime? DueAt
+        {
+            get
+            {
+                DateTime due;
+                return DateTime.TryParseExact(ScheduledFor, ScheduleFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out due) ? (DateTime?)due : null;
+            }
+        }
+        [ScriptIgnore]
+        public string ScheduleLabel { get { return scheduleLabel; } }
+        [ScriptIgnore]
+        public bool NeedsPeriodChoice { get { return !string.IsNullOrEmpty(PendingMorningFor) && !string.IsNullOrEmpty(PendingAfternoonFor); } }
+        [ScriptIgnore]
+        public string MorningChoiceLabel { get { return ChoiceLabel(PendingMorningFor); } }
+        [ScriptIgnore]
+        public string AfternoonChoiceLabel { get { return ChoiceLabel(PendingAfternoonFor); } }
         [ScriptIgnore]
         public bool Editing { get { return editing; } set { editing = value; Notify("Editing"); } }
         public TodoItem() { Id = Guid.NewGuid().ToString("N"); }
+        public void UpdateSchedule(DateTime now)
+        {
+            ScheduleResult result = ScheduleParser.Parse(Text, now);
+            string morning = FormatSchedule(result.MorningAt);
+            string afternoon = FormatSchedule(result.AfternoonAt);
+            string nextSchedule = FormatSchedule(result.DueAt);
+            // Keep an explicit previous choice when only the description changed.
+            if (morning != null && (ScheduledFor == morning || ScheduledFor == afternoon) && ScheduleVersion >= CurrentScheduleVersion)
+                nextSchedule = ScheduledFor;
+            if (nextSchedule != ScheduledFor) ReminderSentFor = null;
+            ScheduleSource = Text;
+            ScheduledFor = nextSchedule;
+            PendingMorningFor = nextSchedule == null ? morning : null;
+            PendingAfternoonFor = nextSchedule == null ? afternoon : null;
+            ScheduleHint = nextSchedule == null ? result.Hint : "";
+            ScheduleVersion = CurrentScheduleVersion;
+            NotifyPeriodChoices();
+            RefreshScheduleLabel(now);
+        }
+        public bool EnsureSchedule(DateTime now)
+        {
+            if (ScheduleSource != Text) { UpdateSchedule(now); return true; }
+            if (ScheduleVersion >= CurrentScheduleVersion) return false;
+            DateTime? existing = DueAt;
+            if (!existing.HasValue) { UpdateSchedule(now); return true; }
+            // Old relative dates already have a fixed calendar date. Preserve it during migration.
+            DateTime anchor = existing.Value.Date;
+            if (Text.Contains("내일")) anchor = anchor.AddDays(-1);
+            else if (Text.Contains("모레")) anchor = anchor.AddDays(-2);
+            ScheduleResult result = ScheduleParser.Parse(Text, anchor);
+            if (result.MorningAt.HasValue) UpdateSchedule(anchor);
+            else ScheduleVersion = CurrentScheduleVersion;
+            return true;
+        }
+        public void ChoosePeriod(bool afternoon, DateTime now)
+        {
+            if (!NeedsPeriodChoice) return;
+            string choice = afternoon ? PendingAfternoonFor : PendingMorningFor;
+            DateTime selected;
+            if (!DateTime.TryParseExact(choice, ScheduleFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out selected)) return;
+            ScheduledFor = choice;
+            ReminderSentFor = null;
+            PendingMorningFor = null;
+            PendingAfternoonFor = null;
+            ScheduleHint = "";
+            NotifyPeriodChoices();
+            RefreshScheduleLabel(now);
+        }
+        private static string FormatSchedule(DateTime? date)
+        { return date.HasValue ? date.Value.ToString(ScheduleFormat, CultureInfo.InvariantCulture) : null; }
+        private static string ChoiceLabel(string value)
+        {
+            DateTime date;
+            return DateTime.TryParseExact(value, ScheduleFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out date)
+                ? date.ToString("tt h:mm", CultureInfo.GetCultureInfo("ko-KR")) : "";
+        }
+        private void NotifyPeriodChoices()
+        {
+            Notify("NeedsPeriodChoice");
+            Notify("MorningChoiceLabel");
+            Notify("AfternoonChoiceLabel");
+        }
+        public void RefreshScheduleLabel(DateTime now)
+        {
+            DateTime? due = DueAt;
+            string label = ScheduleHint ?? "";
+            DateTime pending;
+            if (NeedsPeriodChoice && DateTime.TryParseExact(PendingMorningFor, ScheduleFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out pending))
+                label = pending.ToString("M/d(ddd)", CultureInfo.GetCultureInfo("ko-KR")) + " · 오전/오후 확인 필요";
+            if (due.HasValue)
+            {
+                string status = Completed ? "완료" : due.Value <= now ? "시간 지남" : ReminderSentFor == ScheduledFor ? "알림 보냄" : "30분 전 알림";
+                label = due.Value.ToString("M/d(ddd) HH:mm", CultureInfo.GetCultureInfo("ko-KR")) + " · " + status;
+            }
+            if (scheduleLabel != label) { scheduleLabel = label; Notify("ScheduleLabel"); }
+        }
         public event PropertyChangedEventHandler PropertyChanged;
         private void Notify(string name) { if (PropertyChanged != null) PropertyChanged(this, new PropertyChangedEventArgs(name)); }
     }

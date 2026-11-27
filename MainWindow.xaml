@@ -127,8 +127,8 @@
         <Border Grid.Row="2" BorderBrush="#D6DECE" BorderThickness="1" CornerRadius="10" Background="#FFFEFB" Padding="12,7,6,7" Margin="0,0,0,13">
           <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="32"/></Grid.ColumnDefinitions>
-            <TextBlock x:Name="InputPlaceholder" Text="할 일을 적고 Enter" Foreground="#9AA092" VerticalAlignment="Center" IsHitTestVisible="False"/>
-            <TextBox x:Name="TaskInput" AutomationProperties.Name="새 할 일" MaxLength="4000" VerticalAlignment="Center"/>
+            <TextBlock x:Name="InputPlaceholder" Text="내일 오후 3시 회의 · Enter" Foreground="#9AA092" VerticalAlignment="Center" IsHitTestVisible="False"/>
+            <TextBox x:Name="TaskInput" AutomationProperties.Name="새 할 일" MaxLength="4000" VerticalAlignment="Center" ToolTip="예: 26일 목요일 오후 4시 회의 / 내일 14:00 실험 / 2시 반 방문&#10;2시처럼 오전·오후가 모호하면 항목 아래에서 선택합니다. 14:00은 24시간제입니다.&#10;날짜가 없으면 오늘로 읽습니다. 인식 결과를 항목 아래에서 확인하세요."/>
             <Button x:Name="AddButton" Grid.Column="1" Content="＋" FontSize="22" Padding="0" Height="30" Foreground="#38634F" ToolTip="할 일 추가 (Enter)" AutomationProperties.Name="할 일 추가"/>
           </Grid>
         </Border>
@@ -141,7 +141,8 @@
                   <Grid.ColumnDefinitions><ColumnDefinition Width="16"/><ColumnDefinition Width="33"/><ColumnDefinition/><ColumnDefinition Width="25"/><ColumnDefinition Width="25"/></Grid.ColumnDefinitions>
                   <TextBlock Tag="DragHandle" Text="⠿" FontFamily="Segoe UI Symbol" FontSize="14" Foreground="#C1C8BB" Cursor="SizeAll" VerticalAlignment="Top" Margin="0,5,0,0" ToolTip="드래그로 순서 변경 (Alt+↑ / ↓)"/>
                   <CheckBox Grid.Column="1" IsChecked="{Binding Completed, Mode=TwoWay}" AutomationProperties.Name="완료 표시"/>
-                  <TextBlock Grid.Column="2" Tag="TaskTitle" Text="{Binding Text}" TextWrapping="Wrap" Margin="0,5,4,3" VerticalAlignment="Top" ToolTip="두 번 클릭하여 수정 (F2)">
+                  <StackPanel Grid.Column="2">
+                  <TextBlock Tag="TaskTitle" Text="{Binding Text}" TextWrapping="Wrap" Margin="0,5,4,3" VerticalAlignment="Top" ToolTip="두 번 클릭하여 수정 (F2)">
                     <TextBlock.Style><Style TargetType="TextBlock">
                       <Setter Property="Foreground" Value="#363E34"/>
                       <Style.Triggers>
@@ -150,7 +151,16 @@
                       </Style.Triggers>
                     </Style></TextBlock.Style>
                   </TextBlock>
-                  <TextBox Grid.Column="2" x:Name="TaskEditor" Tag="TaskEditor" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding Editing, Converter={StaticResource BoolVisibility}}" MaxLength="4000" TextWrapping="Wrap" Background="#FFFEFB" BorderBrush="#BED0BA" BorderThickness="0,0,0,1" Padding="2,4" AutomationProperties.Name="할 일 수정"/>
+                  <TextBox x:Name="TaskEditor" Tag="TaskEditor" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding Editing, Converter={StaticResource BoolVisibility}}" MaxLength="4000" TextWrapping="Wrap" Background="#FFFEFB" BorderBrush="#BED0BA" BorderThickness="0,0,0,1" Padding="2,4" AutomationProperties.Name="할 일 수정"/>
+                  <TextBlock Text="{Binding ScheduleLabel}" FontSize="10" Foreground="#738469" TextWrapping="Wrap" Margin="0,0,3,2" ToolTip="이 PC의 날짜와 시간 기준입니다. 곁메모를 실행하거나 최소화해 두면 30분 전에 알립니다.">
+                    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding ScheduleLabel}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                  </TextBlock>
+                  <WrapPanel Margin="0,3,0,2">
+                    <WrapPanel.Style><Style TargetType="WrapPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding NeedsPeriodChoice}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger><DataTrigger Binding="{Binding Editing}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger><DataTrigger Binding="{Binding Completed}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></WrapPanel.Style>
+                    <Button Tag="ChooseMorning" Content="{Binding MorningChoiceLabel}" AutomationProperties.Name="오전으로 확인" Background="#EAF0E5" Foreground="#38634F" FontSize="11" Padding="8,5" Margin="0,0,5,3" ToolTip="오전 일정으로 확정하고 30분 전 알림을 예약합니다."/>
+                    <Button Tag="ChooseAfternoon" Content="{Binding AfternoonChoiceLabel}" AutomationProperties.Name="오후로 확인" Background="#EAF0E5" Foreground="#38634F" FontSize="11" Padding="8,5" Margin="0,0,0,3" ToolTip="오후 일정으로 확정하고 30분 전 알림을 예약합니다."/>
+                  </WrapPanel>
+                  </StackPanel>
                   <Button Grid.Column="3" Tag="EditTask" FontFamily="Segoe MDL2 Assets" Content="&#xE70F;" FontSize="10" Padding="0" Height="28" VerticalAlignment="Top" Foreground="#929B8B" ToolTip="수정" AutomationProperties.Name="할 일 수정하기"/>
                   <Button Grid.Column="4" Tag="DeleteTask" FontFamily="Segoe MDL2 Assets" Content="&#xE711;" FontSize="10" Padding="0" Height="28" VerticalAlignment="Top" Foreground="#929B8B" ToolTip="삭제 (아래 되돌리기로 복원)" AutomationProperties.Name="할 일 삭제"/>
                 </Grid>
@@ -181,9 +191,10 @@
         </Grid>
       </Grid>
       <Border Grid.Row="2" Background="#F1F3EB" BorderBrush="#E7EADF" BorderThickness="0,1,0,0" Padding="20,0,17,0">
-        <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-          <TextBlock x:Name="SaveLabel" Text="자동 저장" FontSize="10" Foreground="#8D9881" VerticalAlignment="Center"/>
-          <Button x:Name="UndoButton" Grid.Column="1" Content="삭제 되돌리기" FontSize="10" Padding="5,2" Visibility="Collapsed" ToolTip="마지막 삭제 되돌리기 (목록에서 Ctrl+Z)"/>
+        <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <TextBlock x:Name="SaveLabel" Text="자동 저장" FontSize="10" TextTrimming="CharacterEllipsis" Foreground="#8D9881" VerticalAlignment="Center"/>
+          <Button x:Name="TestNotificationButton" Grid.Column="1" Content="알림 테스트" FontSize="10" Padding="5,2" ToolTip="Windows 테스트 알림을 보냅니다.&#10;실행 중과 최소화 상태에서 일정 30분 전에 알립니다. ×로 종료하면 알림도 종료됩니다."/>
+          <Button x:Name="UndoButton" Grid.Column="2" Content="삭제 되돌리기" FontSize="10" Padding="5,2" Visibility="Collapsed" ToolTip="마지막 삭제 되돌리기 (목록에서 Ctrl+Z)"/>
         </Grid>
       </Border>
     </Grid>

@@ -81,6 +81,7 @@ namespace GyeotMemo
                 state.Tasks = tasks.ToList(); store.Save(state);
                 Check(new MemoStore(sandbox).Load().Tasks.Select(t => t.Text).SequenceEqual(new[] { "c", "a", "b" }), "Order round-trip");
                 report.Add("PASS: batch delete, stacked undo, exact position restore and reordered persistence");
+                ReminderTests.Run(sandbox, report);
                 File.WriteAllLines(Path.Combine(directory, "self-test-results.txt"), report.ToArray(), new UTF8Encoding(false));
                 return 0;
             }

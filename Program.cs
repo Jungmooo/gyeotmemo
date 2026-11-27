@@ -81,6 +81,8 @@ namespace GyeotMemo
         private readonly TaskHistory history = new TaskHistory();
         private readonly DispatcherTimer saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
         private readonly DispatcherTimer dateTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        private readonly DispatcherTimer reminderTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        private ReminderNotifications notifications;
         private TextBox input, note;
         private ListBox list;
         private TextBlock saveLabel;
@@ -109,7 +111,15 @@ namespace GyeotMemo
             Window.Top = saved.Top.HasValue && IsFinite(saved.Top.Value) ? saved.Top.Value : area.Top + 45;
             Window.Topmost = saved.Pinned;
             input.Text = saved.Draft; note.Text = saved.Note;
-            foreach (TodoItem task in saved.Tasks) { task.Editing = false; tasks.Add(task); task.PropertyChanged += TaskChanged; }
+            bool migratedSchedules = false;
+            foreach (TodoItem task in saved.Tasks)
+            {
+                task.Editing = false;
+                if (task.EnsureSchedule(DateTime.Now)) migratedSchedules = true;
+                task.RefreshScheduleLabel(DateTime.Now);
+                tasks.Add(task);
+                task.PropertyChanged += TaskChanged;
+            }
             tasks.CollectionChanged += CollectionChanged;
             list.ItemsSource = tasks;
             input.TextChanged += delegate { UpdatePlaceholders(); QueueSave(); };
@@ -126,6 +136,7 @@ namespace GyeotMemo
                 UpdateCounts();
             };
             Get<Button>("UndoButton").Click += delegate { UndoDelete(); };
+            Get<Button>("TestNotificationButton").Click += delegate { TestNotification(); };
             Get<Border>("TitleBar").MouseLeftButtonDown += delegate(object sender, MouseButtonEventArgs e)
             {
                 if (Ancestor<ButtonBase>(e.OriginalSource as DependencyObject) == null && e.ButtonState == MouseButtonState.Pressed)
@@ -154,6 +165,7 @@ namespace GyeotMemo
             {
                 EnsureVisible(); UpdateNoteBounds(); UpdateCounts(); UpdatePin(); UpdatePlaceholders(); UpdateDate();
                 ready = true;
+                InitializeNotifications();
                 if (store.WriteBlocked)
                 {
                     input.IsReadOnly = true; note.IsReadOnly = true; list.IsEnabled = false;
@@ -167,7 +179,9 @@ namespace GyeotMemo
                 }
                 saveLabel.ToolTip = (store.LoadMessage == null ? "자동으로 이 PC에 저장합니다." : store.LoadMessage) + "\n" + store.FilePath;
                 input.Focus();
-                if (!File.Exists(store.FilePath) && !store.WriteBlocked) QueueSave();
+                if ((!File.Exists(store.FilePath) || migratedSchedules) && !store.WriteBlocked) QueueSave();
+                CheckReminders();
+                reminderTimer.Start();
             };
             Window.SourceInitialized += delegate
             {
@@ -175,6 +189,7 @@ namespace GyeotMemo
             };
             saveTimer.Tick += delegate { saveTimer.Stop(); SaveNow(); };
             dateTimer.Tick += delegate { UpdateDate(); };
+            reminderTimer.Tick += delegate { CheckReminders(); };
             dateTimer.Start();
         }
 
@@ -251,14 +266,23 @@ namespace GyeotMemo
             UpdateCounts(); QueueSave();
         }
         private void TaskChanged(object sender, PropertyChangedEventArgs e)
-        { if (e.PropertyName != "Editing") { UpdateCounts(); QueueSave(); } }
+        {
+            if (e.PropertyName == "Text" || e.PropertyName == "Completed")
+            {
+                ((TodoItem)sender).RefreshScheduleLabel(DateTime.Now);
+                UpdateCounts();
+                QueueSave();
+            }
+        }
         private void AddTask()
         {
             EndEdit(false);
             string text = input.Text.Trim();
             if (text.Length == 0) { input.Focus(); return; }
             TodoItem task = new TodoItem { Text = text };
+            task.UpdateSchedule(DateTime.Now);
             tasks.Add(task); input.Clear(); list.ScrollIntoView(task); input.Focus();
+            CheckReminders();
         }
         private void TaskButton(object sender, RoutedEventArgs e)
         {
@@ -267,6 +291,15 @@ namespace GyeotMemo
             if (button == null) return;
             TodoItem task = button.DataContext as TodoItem;
             if (task == null) return;
+            string action = Convert.ToString(button.Tag);
+            if (action == "ChooseMorning" || action == "ChooseAfternoon")
+            {
+                task.ChoosePeriod(action == "ChooseAfternoon", DateTime.Now);
+                QueueSave();
+                CheckReminders();
+                e.Handled = true;
+                return;
+            }
             if (Convert.ToString(button.Tag) == "EditTask") { BeginEdit(task); e.Handled = true; }
             if (Convert.ToString(button.Tag) == "DeleteTask")
             { EndEdit(false); history.Delete(tasks, new[] { task }); UpdateCounts(); e.Handled = true; }
@@ -291,6 +324,12 @@ namespace GyeotMemo
             string text = item.Text.Trim();
             item.Text = cancel || text.Length == 0 ? editOriginal : text;
             item.Editing = false;
+            if (!cancel && item.Text != editOriginal)
+            {
+                item.UpdateSchedule(DateTime.Now);
+                QueueSave();
+                CheckReminders();
+            }
         }
         private void EditorLostFocus(object sender, KeyboardFocusChangedEventArgs e)
         {
@@ -353,6 +392,65 @@ namespace GyeotMemo
             dirty = true; saveTimer.Stop(); saveTimer.Start();
             if (saveError == null && !store.WriteBlocked) saveLabel.Text = "저장 중…";
         }
+
+        private void InitializeNotifications()
+        {
+            try
+            {
+                notifications = new ReminderNotifications(OpenWindow, delegate { Window.Close(); });
+                notifications.Shown += delegate
+                {
+                    Get<Button>("TestNotificationButton").ToolTip = "Windows에서 알림 표시를 확인했습니다.\n곁메모 실행 중과 최소화 상태에서 일정 30분 전에 알립니다. ×로 종료하면 알림도 종료됩니다.";
+                };
+            }
+            catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is ExternalException || error is InvalidOperationException)
+            {
+                Get<Button>("TestNotificationButton").IsEnabled = false;
+                Get<Button>("TestNotificationButton").ToolTip = "Windows 알림을 초기화하지 못했습니다.\n" + error.Message;
+            }
+        }
+
+        private void OpenWindow()
+        {
+            if (Window.WindowState == WindowState.Minimized) Window.WindowState = WindowState.Normal;
+            Window.Show();
+            Window.Activate();
+        }
+
+        private void TestNotification()
+        {
+            try
+            {
+                if (notifications == null) return;
+                notifications.ShowTest();
+                Get<Button>("TestNotificationButton").ToolTip = "테스트 알림을 보냈습니다. 보이지 않으면 Windows 알림 설정과 방해 금지 상태를 확인해 주세요.\n곁메모 실행 중과 최소화 상태에서 일정 30분 전에 알립니다. ×로 종료하면 알림도 종료됩니다.";
+            }
+            catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is ExternalException || error is InvalidOperationException)
+            { MessageBox.Show(Window, "Windows 알림을 보내지 못했습니다.\n" + error.Message, "곁메모 · 알림", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        }
+
+        private void CheckReminders()
+        {
+            if (!ready || store.WriteBlocked || notifications == null) return;
+            DateTime now = DateTime.Now;
+            foreach (TodoItem task in tasks) task.RefreshScheduleLabel(now);
+            var due = ReminderPlanner.Due(tasks, now);
+            if (due.Count == 0) return;
+            try
+            {
+                // Batch simultaneous reminders so one shell notification cannot overwrite another.
+                notifications.Show(due, now);
+                foreach (TodoItem task in due)
+                {
+                    task.ReminderSentFor = task.ScheduledFor;
+                    task.RefreshScheduleLabel(now);
+                }
+                QueueSave();
+                SaveNow();
+            }
+            catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is ExternalException || error is InvalidOperationException)
+            { Get<Button>("TestNotificationButton").ToolTip = "일정 알림을 보내지 못했습니다. 다시 시도합니다.\n" + error.Message; }
+        }
         private bool SaveNow()
         {
             if (!ready || !dirty) return true;
@@ -387,7 +485,8 @@ namespace GyeotMemo
                 MessageBox.Show(Window, "메모를 저장하지 못했습니다. 창을 열어 두었습니다.\n저장 폴더의 권한이나 파일 상태를 확인한 뒤 다시 닫아 주세요.\n\n" + saveError, "곁메모 · 저장 확인", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            saveTimer.Stop(); dateTimer.Stop();
+            saveTimer.Stop(); dateTimer.Stop(); reminderTimer.Stop();
+            if (notifications != null) { notifications.Dispose(); notifications = null; }
         }
         private static T Ancestor<T>(DependencyObject element) where T : DependencyObject
         {
